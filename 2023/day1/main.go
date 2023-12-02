@@ -1,5 +1,7 @@
 package main
 
+// https://adventofcode.com/2023/day/1
+
 import (
 	"bufio"
 	"fmt"
