@@ -35,10 +35,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer file.Close()
 
 	s := bufio.NewScanner(file)
-	s.Split(bufio.ScanLines)
-
 	for s.Scan() {
 		game := parseLine(s.Text())
 

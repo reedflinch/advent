@@ -29,14 +29,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer file.Close()
 
 	s := bufio.NewScanner(file)
-	s.Split(bufio.ScanLines)
-
 	sum1, sum2 := 0, 0
-	for s.Scan() {
-		fmt.Printf("line = %v\n", s.Text())
 
+	for s.Scan() {
 		sum1 += getLineValue(s.Text(), 1)
 		sum2 += getLineValue(s.Text(), 2)
 	}
