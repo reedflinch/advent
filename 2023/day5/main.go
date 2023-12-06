@@ -5,66 +5,172 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode"
 )
 
-// https://adventofcode.com/2023/day/4
+// https://adventofcode.com/2023/day/5
 
-type Seed struct {
-	id, soil, fert, water, light, temp, Humidity, Location int64
+type Seeder struct {
+	Seed, Soil, Fertilizer, Water, Light, Temperature, Humidity, Location int64
 }
 
 type Entry struct {
 	sourceStart, destStart, length int64
 }
 
+type Pair struct {
+	src, dest string
+}
+
+var pairs = []Pair{
+	{src: "Seed", dest: "Soil"},
+	{src: "Soil", dest: "Fertilizer"},
+	{src: "Fertilizer", dest: "Water"},
+	{src: "Water", dest: "Light"},
+	{src: "Light", dest: "Temperature"},
+	{src: "Temperature", dest: "Humidity"},
+	{src: "Humidity", dest: "Location"},
+}
+
 var fileName = "input.txt"
-var seeds = []Seed{}
+var seeds []Seeder
 
 func main() {
+	runPart(1)
+	runPart(2)
+}
+
+func runPart(part int) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
-
 	s := bufio.NewScanner(file)
 
-	seeds = append(seeds, getSeeds(s)...)
-	fmt.Printf("\n\nseeds before soil\n")
-	printSeeds(seeds)
+	seeds = []Seeder{}
+	seeds = append(seeds, getSeeds(s, part)...)
 
-	seedsToSoils(s)
-	// fmt.Printf("\n\nseeds with soil\n")
-	// printSeeds(seeds)
+	for _, pair := range pairs {
+		// fmt.Printf("processing pair %+v part %v\n", pair, part)
+		processPair(s, pair)
+	}
 
-	soilsToFert(s)
-	// fmt.Printf("\n\nseeds with fert\n")
-	// printSeeds(seeds)
+	fmt.Printf("lowest Location (part %v) = %v\n", part, getLowestLocation())
+}
 
-	fertToWater(s)
-	// fmt.Printf("\n\nseeds with water\n")
-	// printSeeds(seeds)
+// 	for _, seed := range seeds {
 
-	waterToLight(s)
-	// fmt.Printf("\n\nseeds with light\n")
-	// printSeeds(seeds)
+// 	}
 
-	lightToTemp(s)
-	// fmt.Printf("\n\nseeds with light\n")
-	// printSeeds(seeds)
+// func (s *Seeder) traverse() {
 
-	tempToHumidity(s)
-	// fmt.Printf("\n\nseeds with light\n")
-	// printSeeds(seeds)
+// }
 
-	humidityToLocation(s)
-	// fmt.Printf("\n\nseeds with light\n")
-	// printSeeds(seeds)
+func processPair(sc *bufio.Scanner, p Pair) {
+	src, dest := p.src, p.dest
 
-	fmt.Printf("lowest Location (part 1) = %v\n", getLowestLocation())
+	headerName := fmt.Sprintf("%s-to-%s map:", strings.ToLower(src), strings.ToLower(dest))
+
+	mapping := []Entry{}
+	foundMap := false
+
+	// extract data from input
+	for sc.Scan() {
+		if strings.HasPrefix(sc.Text(), headerName) {
+			foundMap = true
+			continue
+		}
+
+		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
+		if foundMap {
+			if !isEntryLine {
+				break
+			} else {
+				// populate current map
+				mapping = append(mapping, parseEntry(sc.Text()))
+			}
+		}
+	}
+
+	// process all seeds
+	for i, seed := range seeds {
+		found := false
+		srcValue := reflect.ValueOf(seed).FieldByName(src).Int()
+
+		for _, entry := range mapping {
+			if srcValue >= entry.sourceStart && srcValue <= entry.sourceStart+entry.length-1 {
+				newValue := srcValue + (entry.destStart - entry.sourceStart)
+				seeds[i].setProperty(dest, newValue)
+				found = true
+				break
+			}
+		}
+		if !found {
+			seeds[i].setProperty(dest, srcValue)
+		}
+	}
+}
+
+func getSeeds(sc *bufio.Scanner, part int) []Seeder {
+	if part == 1 {
+		fmt.Printf("getting seeds part 1...\n")
+		return getSeedsPart1(sc)
+	}
+	fmt.Printf("getting seeds part 2...\n")
+	return getSeedsPart2(sc)
+}
+
+func getSeedsPart1(sc *bufio.Scanner) []Seeder {
+	line := ""
+	allSeeds := []Seeder{}
+
+	for sc.Scan() {
+		if strings.HasPrefix(sc.Text(), "seeds:") {
+			line = sc.Text()
+			break
+		}
+	}
+
+	seedList := strings.TrimSpace(strings.TrimPrefix(line, "seeds:"))
+	seedStrs := strings.Fields(seedList)
+
+	for _, seedStr := range seedStrs {
+		id := parseInt(seedStr)
+		allSeeds = append(allSeeds, Seeder{Seed: id})
+	}
+
+	return allSeeds
+}
+
+func getSeedsPart2(sc *bufio.Scanner) []Seeder {
+	line := ""
+	allSeeds := []Seeder{}
+
+	for sc.Scan() {
+		if strings.HasPrefix(sc.Text(), "seeds:") {
+			line = sc.Text()
+			break
+		}
+	}
+
+	seedList := strings.TrimSpace(strings.TrimPrefix(line, "seeds:"))
+	seedStrs := strings.Fields(seedList)
+
+	for i := 0; i < len(seedStrs)-1; i += 2 {
+		start := parseInt(seedStrs[i])
+		length := parseInt(seedStrs[i+1])
+
+		for j := start; j < start+length; j++ {
+			fmt.Printf("adding seed %v\n", j)
+			allSeeds = append(allSeeds, Seeder{Seed: j})
+		}
+	}
+
+	return allSeeds
 }
 
 func getLowestLocation() int64 {
@@ -79,293 +185,9 @@ func getLowestLocation() int64 {
 	return int64(lowest)
 }
 
-func humidityToLocation(sc *bufio.Scanner) {
-	headerName := "humidity-to-location map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			if seed.Humidity >= entry.sourceStart && seed.Humidity <= entry.sourceStart+entry.length-1 {
-				seeds[i].Location = seed.Humidity + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].Location = seed.Humidity
-		}
-	}
-}
-
-func tempToHumidity(sc *bufio.Scanner) {
-	headerName := "temperature-to-humidity map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			if seed.temp >= entry.sourceStart && seed.temp <= entry.sourceStart+entry.length-1 {
-				seeds[i].Humidity = seed.temp + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].Humidity = seed.temp
-		}
-	}
-}
-
-func lightToTemp(sc *bufio.Scanner) {
-	headerName := "light-to-temperature map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			if seed.light >= entry.sourceStart && seed.light <= entry.sourceStart+entry.length-1 {
-				seeds[i].temp = seed.light + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].temp = seed.light
-		}
-	}
-}
-
-func waterToLight(sc *bufio.Scanner) {
-	headerName := "water-to-light map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			if seed.water >= entry.sourceStart && seed.water <= entry.sourceStart+entry.length-1 {
-				seeds[i].light = seed.water + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].light = seed.water
-		}
-	}
-}
-
-func fertToWater(sc *bufio.Scanner) {
-	headerName := "fertilizer-to-water map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			if seed.fert >= entry.sourceStart && seed.fert <= entry.sourceStart+entry.length-1 {
-				seeds[i].water = seed.fert + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].water = seed.fert
-		}
-	}
-}
-
-func soilsToFert(sc *bufio.Scanner) {
-	headerName := "soil-to-fertilizer map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			// lowerBound := entry.sourceStart
-			// upperBound := entry.sourceStart + entry.length - 1
-			if seed.soil >= entry.sourceStart && seed.soil <= entry.sourceStart+entry.length-1 {
-				seeds[i].fert = seed.soil + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].fert = seed.soil
-		}
-	}
-}
-
-func seedsToSoils(sc *bufio.Scanner) {
-	headerName := "seed-to-soil map:"
-
-	mapping := []Entry{}
-	foundMap := false
-
-	// extract data from input
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), headerName) {
-			foundMap = true
-			continue
-		}
-
-		isEntryLine := len(sc.Text()) > 0 && unicode.IsDigit(rune(sc.Text()[0]))
-		if foundMap {
-			if !isEntryLine {
-				break
-			} else {
-				// populate map
-				mapping = append(mapping, parseEntry(sc.Text()))
-			}
-		}
-	}
-
-	// process all seeds
-	for i, seed := range seeds {
-		found := false
-
-		for _, entry := range mapping {
-			if seed.id >= entry.sourceStart && seed.id <= entry.sourceStart+entry.length-1 {
-				seeds[i].soil = seed.id + (entry.destStart - entry.sourceStart)
-				found = true
-				break
-			}
-		}
-		if !found {
-			seeds[i].soil = seed.id
-		}
-	}
+func (s *Seeder) setProperty(name string, value int64) *Seeder {
+	reflect.ValueOf(s).Elem().FieldByName(name).SetInt(value)
+	return s
 }
 
 func parseEntry(s string) Entry {
@@ -377,42 +199,13 @@ func parseEntry(s string) Entry {
 	}
 }
 
-func getSeeds(sc *bufio.Scanner) []Seed {
-	line := ""
-	allSeeds := []Seed{}
-
-	for sc.Scan() {
-		if strings.HasPrefix(sc.Text(), "seeds:") {
-			line = sc.Text()
-			break
-		}
-	}
-
-	seedList := strings.TrimSpace(strings.TrimPrefix(line, "seeds:"))
-	seedStrs := strings.Fields(seedList)
-
-	for _, seedStr := range seedStrs {
-		id := parseInt(seedStr)
-		allSeeds = append(allSeeds, Seed{id: id})
-	}
-
-	return allSeeds
-}
-
 func parseInt(s string) int64 {
 	i, _ := strconv.ParseInt(s, 10, 64)
 	return i
 }
 
-func printSeeds(seeds []Seed) {
+func printSeeds(seeds []Seeder) {
 	for _, seed := range seeds {
 		fmt.Printf("seed = %+v\n", seed)
 	}
 }
-
-/*
-Seed 79, soil 81, fertilizer 81, water 81, light 74, temperature 78, Humidity 78, Location 82.
-Seed 14, soil 14, fertilizer 53, water 49, light 42, temperature 42, Humidity 43, Location 43.
-Seed 55, soil 57, fertilizer 57, water 53, light 46, temperature 82, Humidity 82, Location 86.
-Seed 13, soil 13, fertilizer 52, water 41, light 34, temperature 34, Humidity 35, Location 35.
-*/
