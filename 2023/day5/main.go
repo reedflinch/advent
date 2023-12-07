@@ -30,8 +30,6 @@ type Almanac struct {
 }
 
 func runPart(part int) {
-	lowest := math.MaxInt64
-
 	bytes, err := os.ReadFile(fileName)
 	if err != nil {
 		log.Fatal(err)
@@ -41,7 +39,7 @@ func runPart(part int) {
 	groups := strings.Split(content, "\n\n")
 
 	seeds := []int64{}
-	seeds = append(seeds, getSeeds(groups[0], part)...)
+	seeds = append(seeds, seedsFromLine(groups[0], part)...)
 
 	a := Almanac{
 		groupToMapping(groups[1]),
@@ -53,6 +51,7 @@ func runPart(part int) {
 		groupToMapping(groups[7]),
 	}
 
+	lowest := math.MaxInt64
 	for _, seed := range seeds {
 		location := a.traverse(seed)
 		if location < int64(lowest) {
@@ -92,15 +91,15 @@ func groupToMapping(group string) Mapping {
 
 	mappings := make(Mapping, 0, len(mappingLines))
 	for _, line := range mappingLines {
-		entry := parseEntry(line)
+		entry := lineToEntry(line)
 		mappings = append(mappings, entry)
 	}
 
 	return mappings
 }
 
-func parseEntry(s string) Entry {
-	parts := strings.Fields(s)
+func lineToEntry(line string) Entry {
+	parts := strings.Fields(line)
 	return Entry{
 		destStart:   parseInt(parts[0]),
 		sourceStart: parseInt(parts[1]),
@@ -108,32 +107,26 @@ func parseEntry(s string) Entry {
 	}
 }
 
-func getSeeds(line string, part int) []int64 {
+func seedsFromLine(line string, part int) []int64 {
 	if part == 1 {
-		fmt.Printf("getting seeds part 1...\n")
-		return getSeedsPart1(line)
+		return seedsFromLinePart1(line)
 	}
-	fmt.Printf("getting seeds part 2...\n")
-	return getSeedsPart2(line)
+	return seedsFromLinePart2(line)
 }
 
-func getSeedsPart1(line string) []int64 {
-	allSeeds := []int64{}
-
+func seedsFromLinePart1(line string) (seeds []int64) {
 	seedList := strings.TrimSpace(strings.TrimPrefix(line, "seeds:"))
 	seedStrs := strings.Fields(seedList)
 
 	for _, seedStr := range seedStrs {
 		id := parseInt(seedStr)
-		allSeeds = append(allSeeds, id)
+		seeds = append(seeds, id)
 	}
 
-	return allSeeds
+	return seeds
 }
 
-func getSeedsPart2(line string) []int64 {
-	allSeeds := []int64{}
-
+func seedsFromLinePart2(line string) (seeds []int64) {
 	seedList := strings.TrimSpace(strings.TrimPrefix(line, "seeds:"))
 	seedStrs := strings.Fields(seedList)
 
@@ -142,11 +135,11 @@ func getSeedsPart2(line string) []int64 {
 		length := parseInt(seedStrs[i+1])
 
 		for j := start; j < start+length; j++ {
-			allSeeds = append(allSeeds, j)
+			seeds = append(seeds, j)
 		}
 	}
 
-	return allSeeds
+	return seeds
 }
 
 func parseInt(s string) int64 {
